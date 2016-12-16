@@ -29,6 +29,8 @@ uint16_t stripR, stripG, stripB;
 /* Initialise with default values (int time = 2.4ms, gain = 1x) */
 Adafruit_TCS34725 tcs = Adafruit_TCS34725();
 #define maxIn   128
+int startC = -1;
+
 
 // RGB Converter
 RGBConverter rgbConvert;
@@ -37,29 +39,16 @@ RGBConverter rgbConvert;
 bool dayMode;
 
 // Pulse
-float brightRatio;
-float brightFreq = 5000;
+float heartBeat;
+float heartFreq = 5000;
+
+// If I want to log, define it
+#define iCanLog
 
 void setup() {
   
   Serial.begin(9600);
-  
   Serial.println("Init --------------------------------------");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
-  Serial.println("-");
   
   if (tcs.begin()) {
     Serial.println("Found sensor");
@@ -76,13 +65,13 @@ void setup() {
 }
 
 void loop() {
-  // 
-  brightRatio = fmod(millis(),brightFreq) / brightFreq;
-  brightRatio = 0.5f * (sin(TWO_PI * brightRatio) + 1);
+  // --- Calculation of heartBeat
+  heartBeat = fmod(millis(),heartFreq) / heartFreq;
+  heartBeat = 0.5f * (sin(TWO_PI * heartBeat) + 1);
   
   getColorSensor();
   setLeds();
-  
+
 }
 
 void setLeds(){
@@ -103,7 +92,6 @@ void setCowork(){
     pixels.setPixelColor(0, pixels.Color(255,255,255));
     pixels.setPixelColor(1, pixels.Color(255,255,255));
   }
-  
 }
 
 void setCroix(){
@@ -113,32 +101,53 @@ void setCroix(){
 
 void getColorSensor() {
   uint16_t r, g, b, c, colorTemp, lux;
-  
+  byte    rgb[3];
+  double  hsl[3];
+    
   tcs.getRawData(&r, &g, &b, &c);
   colorTemp = tcs.calculateColorTemperature(r, g, b);
   lux = tcs.calculateLux(r, g, b);
+
+  // Initialization with the first value
+  if(startC == -1){
+    startC = c;
+  }
   
-  double hsl[3];
   rgbConvert.rgbToHsl(r, g, b, hsl);
 
-  byte rgb[3];
-  if(hsl[1] >= 1){
+  //if(hsl[1] >= 1){
+  if(c <= startC){
     // Nothing
-    rgbConvert.hslToRgb(hsl[0], hsl[1], hsl[2], rgb);
+    rgbConvert.hslToRgb(hsl[0], 0.0f, 0.0f, rgb);
+    rgb[0] = 0;
+    rgb[1] = 0;
+    rgb[2] = 0;
   }else{
     // Something
     rgbConvert.hslToRgb(hsl[0], hsl[1] * 1.4f, 0.5f, rgb);
   }
   
   // Calculation 
-  stripR = map(rgb[0], 0, 255, 0, c) * brightRatio;
-  stripG = map(rgb[1], 0, 255, 0, c) * brightRatio;
-  stripB = map(rgb[2], 0, 255, 0, c) * brightRatio;
+  stripR = map(rgb[0], 0, 255, 0, c) * heartBeat;
+  stripG = map(rgb[1], 0, 255, 0, c) * heartBeat;
+  stripB = map(rgb[2], 0, 255, 0, c) * heartBeat;
+
+#ifdef iCanLog
+
+  Serial.print("Day/Night : ");
+  
+  if(dayMode == 1){
+    Serial.print("Day");
+  }else{
+    Serial.print("Night");
+  }
+  Serial.print(" - ");
+  
 
   //Serial.print("Color Temp: "); Serial.print(colorTemp, DEC); Serial.print(" K - ");
   //Serial.print("Lux: "); Serial.print(lux, DEC); Serial.print(" - ");
-  Serial.print("brightRatio : ");
-  Serial.print(brightRatio, DEC);
+  Serial.print("heartBeat : ");
+  Serial.print(heartBeat, DEC);
   Serial.print(" - ");
   
   Serial.print("[R,G,B] : ");
@@ -157,8 +166,11 @@ void getColorSensor() {
   Serial.print("] - ");
 
   Serial.print("C: "); Serial.print(c, DEC); Serial.print(" ");
+  Serial.print("startC: "); Serial.print(startC, DEC); Serial.print(" ");
   Serial.println(" ");
-  
+
+#endif
+
 }
 
 void changeNightAndDay(){
